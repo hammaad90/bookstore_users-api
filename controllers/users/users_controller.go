@@ -1,6 +1,9 @@
+// MVC Driven Development
+
 package users
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -10,58 +13,110 @@ import (
 	"github.com/hammaad90/bookstore_users-api/utils/errors"
 )
 
-func GetUser(c *gin.Context) {
-	// c.String(http.StatusNotImplemented, format:"implement me!")
-	userId, userErr := strconv.ParseInt(c.Param("user_id"), 10, 64)
+// every controller that we have when using gin-gonic http framework needs to have this  c *gin.Context interface
+
+func getUserId(userIdParam string) (int64, *errors.RestError) {
+	userId, userErr := strconv.ParseInt(userIdParam, 10, 64)
 	if userErr != nil {
-		err := errors.NewBadRequestError("user id should be a number")
-		c.JSON(err.Status, err)
-		return
+		return 0, errors.NewBadRequestError("user id should be a number")
 	}
-	result, getErr := services.GetUser(userId)
-	if getErr != nil {
-		c.JSON(getErr.Status, getErr)
-		//TODO: handle user creation error
+	return userId, nil
+}
+
+func Get(c *gin.Context) {
+	// c.String(http.StatusNotImplemented, format:"implement me!")
+	userId, idErr := getUserId(c.Param("user_id"))
+	if idErr != nil {
+		c.JSON(idErr.Status, idErr)
 		return
 	}
 
-	c.JSON(http.StatusCreated, result)
+	user, getErr := services.UserService.GetUser(userId)
+	if getErr != nil {
+		c.JSON(getErr.Status, getErr)
+		return
+	}
+
+	c.JSON(http.StatusCreated, user.Marshall(c.GetHeader("x-Public") == "true"))
 
 }
 
-func CreateUser(c *gin.Context) {
+func Create(c *gin.Context) {
 	var user users.User
-	// fmt.Println(user)
-	// bytes, err := ioutil.ReadAll(c.Request.Body)
-	// if err != nil {
-	// 	// TODO: Handle error
-	// 	return
-	// }
-	// if err := json.Unmarshal(bytes, &user); err != nil {
-	// 	fmt.Println(err.Error())
-	// 	// TODO:  handle json error
-	// 	return
-	// }
-
+	fmt.Println("rrrrrrrrrrrrrrrrrrr", user)
+	// handling req.body error if json is not accurate
+	// this is reading req.body and handling json error if any in req/.body json
 	if err := c.ShouldBindJSON(&user); err != nil {
-		// TODO: return bad request to caller
+		// handling json errors
 		restErr := errors.NewBadRequestError("Invalid json body")
 		c.JSON(restErr.Status, restErr)
 		return
 	}
 
-	result, saveErr := services.CreateUser(user)
+	// if no error sending user to service to get created
+	result, saveErr := services.UserService.CreateUser(user)
 	if saveErr != nil {
+
+		// if error in processing user
 		c.JSON(saveErr.Status, saveErr)
-		//TODO: handle user creation error
 		return
 	}
 
-	c.JSON(http.StatusCreated, result)
+	// if user is created successfully
+	c.JSON(http.StatusCreated, result.Marshall(c.GetHeader("x-Public") == "true"))
 
 }
 
-// func SearchUser(c *gin.Context) {
-// 	c.String(http.StatusNotImplemented, format:"implement me!")
+// Update user
+func Update(c *gin.Context) {
 
-// }
+	userId, idErr := getUserId(c.Param("user_id"))
+	if idErr != nil {
+		c.JSON(idErr.Status, idErr)
+		return
+	}
+
+	var user users.User
+	if err := c.ShouldBindJSON(&user); err != nil {
+		// handling json errors
+		restErr := errors.NewBadRequestError("Invalid json body")
+		c.JSON(restErr.Status, restErr)
+		return
+	}
+	user.Id = userId
+
+	isPartial := c.Request.Method == http.MethodPatch
+
+	result, err := services.UserService.UpdateUser(isPartial, user)
+	if err != nil {
+		c.JSON(err.Status, err)
+		return
+	}
+	c.JSON(http.StatusOK, result.Marshall(c.GetHeader("x-Public") == "true"))
+
+}
+
+func Delete(c *gin.Context) {
+	userId, idErr := getUserId(c.Param("user_id"))
+	if idErr != nil {
+		c.JSON(idErr.Status, idErr)
+		return
+	}
+
+	if err := services.UserService.DeleteUser(userId); err != nil {
+		c.JSON(err.Status, err)
+		return
+	}
+	c.JSON(http.StatusOK, map[string]string{"status": "Deleted"})
+
+}
+
+func Search(c *gin.Context) {
+	status := c.Query("status")
+	users, err := services.UserService.Search(status)
+	if err != nil {
+		c.JSON(err.Status, err)
+		return
+	}
+	c.JSON(http.StatusOK, users.Marshall(c.GetHeader("x-Public") == "true"))
+}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/hammaad90/bookstore_users-api/logger"
 )
 
 var (
@@ -10,5 +11,6 @@ var (
 
 func StartApplication() {
 	mapUrls()
+	logger.Info("about to start deamon...")
 	router.Run(":8080")
 }
